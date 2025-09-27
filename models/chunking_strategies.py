@@ -80,14 +80,27 @@ class ChunkingStrategy(ABC):
 
 class ContextualChunking(ChunkingStrategy):
     """Contextual chunking: adds succinct context to each chunk using Claude Haiku and the whole document."""
-    def __init__(self, base_chunker=None, llm_model=ClaudeLLM(model_name="claude-3-5-haiku-20241022")):
+    def __init__(self, base_chunker=None, llm_model=None):
         super().__init__()
         self.base_chunker = base_chunker or SlidingWindowChunking()
-        self.llm = llm_model
+        # Only initialize Claude if explicitly provided or if API key is available
+        if llm_model is None:
+            try:
+                self.llm = ClaudeLLM(model_name="claude-3-5-haiku-20241022")
+            except ValueError:
+                # Fallback to a simple chunker if Claude is not available
+                self.llm = None
+        else:
+            self.llm = llm_model
         self.prompt_provider = get_provider('contextual_chunking')
 
     def chunk_text(self, text: str, chunk_size: int = 1000, chunk_overlap: int = 200) -> List[str]:
         chunks = self.base_chunker.chunk_text(text, chunk_size, chunk_overlap)
+        
+        # If no LLM is available, just return the base chunks
+        if self.llm is None:
+            return chunks
+            
         results: List[str] = []
         for chunk in chunks:
             prompt = self.prompt_provider.get_prompt(
