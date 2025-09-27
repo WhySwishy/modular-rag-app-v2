@@ -185,6 +185,8 @@ class FileUploadHandler:
         if FileUploadHandler._is_extraction_api_key_missing():
             st.session_state.point_extraction_llm_missing_keys = True
             st.sidebar.warning(f"API key for {POINT_EXTRACTION_LLM.value} needed for automatic point extraction.")
+            # Even without point extraction, initialize pipeline
+            FileUploadHandler._initialize_pipeline_fallback()
             return
 
         st.session_state.point_extraction_llm_missing_keys = False
@@ -245,6 +247,8 @@ class FileUploadHandler:
         except Exception as e:
             st.sidebar.error(f"Error during point extraction: {str(e)}")
             logging.error(f"Point extraction failed: {e}", exc_info=True)
+            # Even if point extraction fails, try to initialize pipeline
+            FileUploadHandler._initialize_pipeline_fallback()
 
     @staticmethod
     def _is_extraction_api_key_missing():
@@ -257,6 +261,46 @@ class FileUploadHandler:
 
         required_key = FileUploadHandler._get_required_api_key(POINT_EXTRACTION_LLM)
         return required_key in missing_keys
+
+    @staticmethod
+    def _initialize_pipeline_fallback():
+        """Initialize pipeline without point extraction when API keys are missing or extraction fails."""
+        try:
+            from pipeline.nature_handling import get_config_by_prompt_nature
+            from pipeline.components.config import PipelineConfig
+            from pipeline.utils.pipeline_initializer import PipelineInitializer
+            from utils.enums import (
+                EmbeddingModelType, VectorStoreType, RerankerModelType, LLMModelType, ChunkingStrategyType
+            )
+
+            # Use general config as fallback
+            subject_config = get_config_by_prompt_nature("general")
+
+            # Build PipelineConfig using current UI/model selections and general config
+            config = PipelineConfig(
+                file_path=st.session_state.file_path,
+                embedding_model_type=EmbeddingModelType.from_string(st.session_state.embedding_model),
+                vector_store_type=VectorStoreType.from_string(st.session_state.vector_store),
+                reranker_type=RerankerModelType.from_string(st.session_state.reranker),
+                llm_type=LLMModelType.from_string(st.session_state.llm_model),
+                chunking_strategy_type=ChunkingStrategyType.from_string(st.session_state.chunking_strategy),
+                chunk_size=subject_config.chunk_size,
+                chunk_overlap=subject_config.chunk_overlap,
+                top_k=subject_config.top_k,
+                hybrid_alpha=subject_config.hybrid_alpha,
+                evaluation_mode=(st.session_state.mode == 'evaluation')
+            )
+
+            # Initialize pipeline and store in session state
+            initializer = PipelineInitializer(config)
+            pipeline_instance = initializer.initialize_pipeline()
+            st.session_state.pipeline = pipeline_instance
+            st.session_state.config_changed = False
+            st.sidebar.success("Pipeline initialized! You can now ask questions about your document.")
+            
+        except Exception as e:
+            st.sidebar.error(f"Pipeline initialization failed: {str(e)}")
+            logging.error(f"Pipeline initialization failed: {e}", exc_info=True)
 
     @staticmethod
     def _get_current_model_enums():
