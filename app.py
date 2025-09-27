@@ -1,4 +1,5 @@
 import streamlit as st
+import os
 import logging
 from ui.ui_components import display_chat_interface, display_evaluation_interface
 from ui.sidebar import display_settings_panel
@@ -10,6 +11,14 @@ from utils.subject_configs import (
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Load keys from Streamlit secrets into environment (works locally and on Cloud)
+for k in ("GEMINI_API_KEY", "MISTRAL_API_KEY"):
+    try:
+        if k in st.secrets and st.secrets[k]:
+            os.environ[k] = str(st.secrets[k])
+    except Exception:
+        pass
 
 logging.basicConfig(
     level=logging.INFO,
@@ -57,7 +66,7 @@ if 'top_k' not in st.session_state:
     st.session_state.top_k = DEFAULT_TOP_K
 
 def main():
-    display_settings_panel()
+    # Sidebar hidden by default (remove settings panel)
 
     if st.session_state.mode == "chat":
         display_chat_interface()
