@@ -52,6 +52,9 @@ class ChatInterface:
         """Render the chat interface header."""
         st.header("💬 Chat with JEFF")
         st.markdown("Hey! Got questions about your textbook? Lay 'em on me. I'll break it down for ya.")
+        
+        # Add file upload since sidebar is hidden
+        self._handle_file_upload()
 
     def _initialize_welcome_message(self):
         """Initialize welcome message if no messages exist (voice temporarily removed)."""
@@ -309,6 +312,22 @@ class ResponseProcessor:
                 for i, context in enumerate(contexts):
                     st.markdown(f"**Snippet {i + 1}:**")
                     st.text(context)
+
+    def _handle_file_upload(self):
+        """Handle file upload in the main interface."""
+        from ui.sidebar import FileUploadHandler
+        
+        st.markdown("### 📁 Upload Document")
+        uploaded_file = st.file_uploader(
+            "Upload .txt or .pdf file",
+            type=['txt', 'pdf'],
+            key="main_file_uploader",
+            help="Upload your textbook in .txt or .pdf format. Max size 50MB."
+        )
+
+        if uploaded_file is not None:
+            with st.spinner("Processing uploaded file..."):
+                FileUploadHandler.process_uploaded_file(uploaded_file)
 
 def display_chat_interface():
     """Factory function to create and display chat interface."""
